@@ -48,6 +48,22 @@ It is also possible to add new exceptions:
     expect(Semola.hyphenate("piovra"), ["pio", "vra"]);
 ```
 
+## Changes for usage in Sillabo (word game)
+
+Some changes in this fork are due to the specific needs of the Sillabo word game (sillabo.it).
+In order to prevent discontinuities in hyphenation when a new version of Semola is released and 
+used in Sillabo, a version can be specified as argument.
+It is not the version of the Semola package, but rather a version of the game algorithm.
+Since new versions are rolled out on a date basis, only the current version and previous version 
+need to be supported. When a new version is released, the previous version becomes obsolete and 
+all occurrences of `VersionedSubstitute` relative to that version can be replaced with `Substitute`.
+
+```dart
+    Semola.hyphenate("isba", version: 5);
+    Semola.hyphenate("isba", version: 6);
+    Semola.hyphenate("isba"); // means latest version 
+```
+
 ## Additional information
 
 Built-in exceptions will be updated in future versions.

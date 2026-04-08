@@ -37,6 +37,8 @@ THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 import 'dart:collection';
+
+import 'package:semola/versioned_substitute.dart';
 import 'package:substitute/substitute.dart';
 
 /// Semola base class, meant to be used statically.
@@ -46,6 +48,8 @@ class Semola {
   static final HashMap<String, List<int>> _builtInExceptions = HashMap();
   static final RegExp _nonWordStart = RegExp(r'^\W+');
   static final RegExp _nonWordEnd = RegExp(r'\W+$');
+
+  static int? _initializationVersion;
 
   static final List<Substitute> _substitutions = [
 //
@@ -74,16 +78,6 @@ class Semola {
         r"s/\b([aeiouàèìòùáéíóú])([bcdfghlmnpqrstvzjkwxy])([aeiouàèìòùáéíóú])/-\1-\2\3/Ig"),
 
 // Da: https://accademiadellacrusca.it/it/consulenza/divisione-in-sillabe/302
-// Nei gruppi consonantici formati da tre o più consonanti (rst, ntr, ltr, rtr, btr) si divide prima della seconda consonante,
-// anche in presenza di prefissi come inter-, trans-, iper-, sub-, super-:
-// con-trol-lo, ven-tri-co-lo, al-tro, scal-tro, in-ter-sti-zio, tran-stel-la-re, i-per-tro-fi-co, sub-tro-pi-ca-le, su-per-cri-ti-ci-tà.
-    Substitute.fromSedExpr(r"s/(r)(st)/\1-\2/Ig"),
-    Substitute.fromSedExpr(r"s/(n)(tr)/\1-\2/Ig"),
-    Substitute.fromSedExpr(r"s/(l)(tr)/\1-\2/Ig"),
-    Substitute.fromSedExpr(r"s/(r)(tr)/\1-\2/Ig"),
-    Substitute.fromSedExpr(r"s/(b)(tr)/\1-\2/Ig"),
-
-// Da: https://accademiadellacrusca.it/it/consulenza/divisione-in-sillabe/302
 // Si possono dividere invece i gruppi vocalici che formano uno iato, che si realizza di massima in tre casi:
 // 1) se nessuna delle due vocali è i o u: quindi ma-e-stra; a-e-ro-pla-no; po-e-ta; pa-e-sag-gio;
     Substitute.fromSedExpr(r"s/([aeoáéóàèò])([aeoáéóàèò])/\1-\2/Ig"),
@@ -94,6 +88,10 @@ class Semola {
     Substitute.fromSedExpr(r"s/([^-])(i)(u)([^-]\w|\b)/\1\2-\3\4/Ig"),
     Substitute.fromSedExpr(r"s/([^-])(i)(a)([^-]\w|\b)/\1\2-\3\4/Ig"),
 
+// Da: https://accademiadellacrusca.it/it/consulenza/divisione-in-sillabe/302
+// Nei gruppi consonantici formati da tre o più consonanti (rst, ntr, ltr, rtr, btr) si divide prima della seconda consonante,
+// anche in presenza di prefissi come inter-, trans-, iper-, sub-, super-:
+// con-trol-lo, ven-tri-co-lo, al-tro, scal-tro, in-ter-sti-zio, tran-stel-la-re, i-per-tro-fi-co, sub-tro-pi-ca-le, su-per-cri-ti-ci-tà.
 // Da: https://scriveregrammaticando.it/2019/12/30/la-divisione-in-sillabe-le-regole-fondamentali/
 // Se il gruppo è formato da tre o più consonanti, la prima consonante va con la vocale precedente, le altre con la vocale successiva
     Substitute.fromSedExpr(
@@ -121,6 +119,8 @@ class Semola {
 // Nelle regole di divisione in sillabe i dittonghi non possono essere spezzati
     Substitute.fromSedExpr(r"s/([iu])-([aeiouàèìòùáéíóú])/\1\2/Ig"),
     Substitute.fromSedExpr(r"s/([aeiouàèìòùáéíóú])-([iu])/\1\2/Ig"),
+// NB: Non c'è modo di sapere a priori se una i o una u è semiconsonante o semivocale,
+// quindi questa regola è problematica e va aggiustata caso per caso.
 
 // Da: https://accademiadellacrusca.it/it/consulenza/divisione-in-sillabe/302
 // Ultimo punto critico della scansione sillabica sono i gruppi formati da tre vocali che vanno distinti in due casi:
@@ -141,13 +141,20 @@ class Semola {
 
 // Da: https://scriveregrammaticando.it/2019/12/30/la-divisione-in-sillabe-le-regole-fondamentali/
 // Vocale seguita da un gruppo di due o più consonanti che può stare anche a inizio parola
-    Substitute.fromSedExpr(
-        r"s/([aeiouàèìòùáéíóú])-?(g-?n|b-?r|c-?r|c-?l|d-?r|f-?l|f-?r|g-?r|m-?n|p-?n|p-?s|p-?r|p-?t|s-?c|s-?f|s-?n|s-?m|s-?p|s-?q|s-?r|s-?t|s-?v|t-?r|t-?l)/\1-\2/Ig"),
+    VersionedSubstitute.fromSedExpr(
+        r"s/([aeiouàèìòùáéíóú])-?(g-?n|b-?r|c-?r|c-?l|d-?r|f-?l|f-?r|g-?r|m-?n|p-?n|p-?s|p-?r|p-?t|s-?c|s-?f|s-?n|s-?m|s-?p|s-?q|s-?r|s-?t|s-?v|t-?r|t-?l)/\1-\2/Ig",
+        maxVersion: 6),
+    VersionedSubstitute.fromSedExpr(
+        r"s/([aeiouàèìòùáéíóú])-?(g-?n|b-?l|b-?r|c-?r|c-?l|d-?r|f-?l|f-?r|g-?l|g-?r|m-?n|p-?n|p-?s|p-?r|p-?t|s-?c|s-?f|s-?n|s-?m|s-?p|s-?q|s-?r|s-?t|s-?v|t-?r|t-?l)/\1-\2/Ig",
+        minVersion: 7),
 
 // Da: https://www.comunicaresulweb.com/scrittura/divisione-in-sillabe-sillabazione/
 // Gruppi di consonanti che producono un suono unico
     Substitute.fromSedExpr(r"s/([cg])-([hnl])-?([aeiouàèìòùáéíóú])/\1\2\3/Ig"),
     Substitute.fromSedExpr(r"s/([cg]i)-([aeiouàèìòùáéíóú])/\1\2/Ig"),
+    Substitute.fromSedExpr(r"s/p-s/ps/Ig"),
+// NB: Non c'è modo di sapere a priori se una i in questi gruppi è muta o no,
+// quindi questa regola è problematica e va aggiustata caso per caso.
 
 // Da: https://www.comunicaresulweb.com/scrittura/divisione-in-sillabe-sillabazione/
 // Una sillaba contiene sempre almeno una vocale, che costituisce una sorta di nucleo della sillaba stessa.
@@ -158,13 +165,57 @@ class Semola {
     Substitute.fromSedExpr(
         r"s/-([bcdfghlmnpqrstvzjkwxy])[^aeiouàèìòùáéíóúbcdfghlmnpqrstvzjkwxy']/\1-/Ig"), // can't use \b because accented letters are considered as boundary
 
+// *************************************************
+// Euristiche per casi particolari
+// *************************************************
+
+    // I derivati di "elegia" ma non di "lelegi" hanno la i accentata.
+    Substitute.fromSedExpr(r"s/e-le-gi([ae])/e-le-gi-\1/Ig"),
+    Substitute.fromSedExpr(r"s/le-le-gi-([ae])/le-le-gi\1/Ig"),
+
+    // I derivati di "scia" e "spia" hanno la i accentata.
+    Substitute.fromSedExpr(r"s/ scia/ sci-a/Ig"),
+    Substitute.fromSedExpr(r"s/ spia/ spi-a/Ig"),
+
+    // L'affisso -tria- ha spesso la i accentata, con qualche prevedibile
+    // eccezione.
+    Substitute.fromSedExpr(r"s/tria/tri-a/Ig"),
+    Substitute.fromSedExpr(r"s/trie /tri-e /Ig"),
+    Substitute.fromSedExpr(r"s/pa-tri-([ae]) /pa-tri\1 /Ig"),
+    Substitute.fromSedExpr(r"s/e-spa-tri-a/e-spa-tria/Ig"),
+    Substitute.fromSedExpr(r"s/rim-pa-tri-a/rim-pa-tria/Ig"),
+
+    // Una serie di suffissi che finiscono in -ia e -ie hanno la i accentata
+    Substitute.fromSedExpr(r"s/("
+        r"lo-g|go-g|fa-g|ple-g|al-g|-tro-f|e-r|e-s|a-s|os-s|sm|i-s|[^r]-n"
+        r"|[^m]m|ps|la-l|a-ch|cra-z|man-z|u-s|o-s|a-f|r-ra-g|er-g|o-d|t|v"
+        r")i([ae]) /\1i-\2 /Ig"),
+
+    // I plurali e i verbi in -ii hanno la prima i accentata.
+    Substitute.fromSedExpr(r"s/ii /i-i /Ig"),
+
+    Substitute.fromSedExpr(r"s/ia-c(a|o|i|he) /i-a-c\1 /Ig"),
+
+    // Gli infissi "-ch-" e "-gh-" sono fusi alla vocale successiva, non a
+    // quella precedente.
+    Substitute.fromSedExpr(r"s/([aeiouàèìòùáéíóú])([cg]h[eièìéí])/\1-\2/Ig"),
+
+    // Le parole che iniziano per "ri-" seguite da vocale si dividono dopo il
+    // prefisso.
+    Substitute.fromSedExpr(r"s/ -ri([aeiouàèìòùáéíóú])/ ri-\1/Ig"),
+    Substitute.fromSedExpr(r"s/ ri-u-sc/ riu-sc/Ig"),
+
+// *************************************************
+// Ripulitura finale
+// *************************************************
+
     Substitute.fromSedExpr(r"s/(\W)-([a-z])/\1\2/Ig"),
     Substitute.fromSedExpr(r"s/([a-z])-(\W)/\1\2/Ig"),
     Substitute.fromSedExpr(r"s/^-//g"),
     Substitute.fromSedExpr(r"s/-([^0-9a-zÀ-ÿ]*)$/\1/Ig"),
   ];
 
-  /// Returns the hyphanation points in the word (used to preserve the original case)
+  /// Returns the hyphanetion points in the word (used to preserve the original case)
   static List<int> _getHyphenationPoints(String hyphenation) {
     List<int> positions = [];
     var dash = '-'.codeUnits.first;
@@ -217,29 +268,100 @@ class Semola {
   }
 
   /// Initializes the built-in exceptions
-  static void _initBuiltInExceptions() {
-    if (_builtInExceptions.isEmpty) {
-      const exceptions = [
-        "li-u-to",
-        "li-u-ti",
-        "pi-o-lo",
-        "pi-o-li",
-        "pio-vra",
-        "pio-vre"
+  static void _initBuiltInExceptions([int? version]) {
+    if (_builtInExceptions.isEmpty || version != _initializationVersion) {
+      _builtInExceptions.clear();
+      final exceptions = [
+        "li-u-to/i",
+        "pi-o-lo/i",
+        "pio-vra/e",
+        "ma-gi-a/e",
+        "al-ba-gi-a/e",
+        "stra-te-gi-a/e",
+        "con-tro-stra-te-gi-a/e",
+        "se-ria/e",
+        "fuo-ri-se-rie",
+        "ar-de-sia/e",
+        "ce-sia/e",
+        "a-gen-zi-a/e",
+        "mer-can-zi-a/e",
+        "fe-ten-zi-a/e",
+        "am-bro-sia/e",
+        "ov-ve-ro-sia",
+        "so-sia",
+        "ma-fia/e",
+        "pa-tria/e",
+        "ar-te-mi-sia/e",
+        "o-dia",
+        "an-gu-stia/e",
+        "zi-a/e",
+        "zi-o/i",
+        "paz-zi-a/e",
+        "raz-zi-a/e",
+        "fol-li-a/e",
+        "re-gi-a/e",
+        "si-a",
+        "si-a-no",
+        "man-gro-via/e",
+        "o-stia/e",
+        "be-go-nia/e",
+        "i-o",
+        "sci-o/i",
+        "fot-ti-o/i",
+        "schi-fi-o/i",
+        "di-o",
+        "mi-o",
+        "fi-o",
+        "pi-o/i",
+        "ri-o/i",
+        "fru-sci-o/i",
+        "scal-pic-ci-o/i",
+        "ca-lo-ri-a/e",
+        "ri-a/e",
+        "u-to-pi-a/e",
+        "di-a-ria/e",
+        "di-a-rio",
+        "di-a-ri",
+        "di-ur-no/i",
+        "di-ur-na/e",
+        "i-sba/e",
+        "i-sba-glio",
+        "i-sba-gli",
+        "cir-cu-i-ta/e",
+        "cir-cu-i-to/i",
+
+        // When releasing new versions, move these exceptions to the unversioned
+        // block above, update the version number and place new versioned
+        // exceptions in this block below.
+        if (version == null || version >= 7) ...[
+          "o-bli-o/i",
+        ]
       ];
       for (var e in exceptions) {
-        _builtInExceptions.addAll({
-          e.replaceAll('-', '').toUpperCase().trim(): _getHyphenationPoints(e)
-        });
+        int firstVariantEnd = e.indexOf('/');
+        if (firstVariantEnd == -1) {
+          _addBuiltInException(e);
+        } else {
+          _addBuiltInException(e.substring(0, firstVariantEnd));
+          final secondVariant = e.substring(0, firstVariantEnd - 1) +
+              e.substring(firstVariantEnd + 1);
+          _addBuiltInException(secondVariant);
+        }
       }
     }
+  }
+
+  static _addBuiltInException(String e) {
+    _builtInExceptions[e.replaceAll('-', '').toUpperCase().trim()] =
+        _getHyphenationPoints(e);
   }
 
   /// Hyphenates an input word and returns a list of syllables.
   /// User-defined exceptions are processed first, followed by built-in
   /// exceptions.
-  static List<String> hyphenate(String word) {
-    _initBuiltInExceptions();
+  static List<String> hyphenate(String word, {int? version}) {
+    _initBuiltInExceptions(version);
+    VersionedSubstitute.currentVersion = version;
     if (word.contains(_spaces)) {
       throw "$word is not a single word";
     }
