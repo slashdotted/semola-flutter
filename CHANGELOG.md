@@ -13,3 +13,7 @@
 ## 0.0.4
 
 * Remove Flutter dependency
+
+## 0.0.5
+
+* Merge improvements made by Mauro Vanetti
